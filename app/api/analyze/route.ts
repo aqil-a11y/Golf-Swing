@@ -139,15 +139,33 @@ export async function POST(request: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
-    const geminiResult = await model.generateContent([
-      {
-        fileData: {
-          mimeType: uploadResult.file.mimeType,
-          fileUri: uploadResult.file.uri,
-        },
-      },
-      { text: ANALYSIS_PROMPT },
-    ])
+    const generateWithRetry = async (retries = 3, delayMs = 5000) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await model.generateContent([
+            {
+              fileData: {
+                mimeType: uploadResult.file.mimeType,
+                fileUri: uploadResult.file.uri,
+              },
+            },
+            { text: ANALYSIS_PROMPT },
+          ])
+        } catch (err: unknown) {
+          const isOverloaded =
+            err instanceof Error &&
+            (err.message.includes('503') || err.message.toLowerCase().includes('service unavailable') || err.message.toLowerCase().includes('overloaded'))
+          if (isOverloaded && i < retries - 1) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)))
+          } else {
+            throw err
+          }
+        }
+      }
+      throw new Error('Gemini is currently unavailable. Please try again in a moment.')
+    }
+
+    const geminiResult = await generateWithRetry()
 
     const responseText = geminiResult.response.text()
 
