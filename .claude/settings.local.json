@@ -5,7 +5,8 @@
       "Bash(npx tsc *)",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(rm \"/Users/Animaltechnology/Documents/Claude/Projects/Golf Swing/1. Build/.git/HEAD.lock\")"
     ]
   }
 }
