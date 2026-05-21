@@ -10,7 +10,7 @@ interface VideoUploaderProps {
   analysisStep: string
 }
 
-const MAX_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_SIZE = 200 * 1024 * 1024
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime']
 
 export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUploaderProps) {
@@ -32,7 +32,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
       return
     }
     if (f.size > MAX_SIZE) {
-      setError('File is too large. Maximum size is 50MB.')
+      setError('File is too large. Maximum size is 200MB.')
       return
     }
     if (previewUrl) URL.revokeObjectURL(previewUrl)
@@ -107,7 +107,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
                 {isDragging ? 'Drop your video here' : 'Upload your swing video'}
               </p>
               <p className="text-slate-400 text-sm">Drag & drop or click to browse</p>
-              <p className="text-slate-600 text-xs mt-2">MP4 or MOV · Max 50MB</p>
+              <p className="text-slate-600 text-xs mt-2">MP4 or MOV · Max 200MB</p>
             </div>
           </div>
         </div>
