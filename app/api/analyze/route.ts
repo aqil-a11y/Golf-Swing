@@ -4,12 +4,12 @@ import { GoogleAIFileManager, FileState } from '@google/generative-ai/server'
 import { writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { del } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
 
 export const maxDuration = 120
 
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime']
-const MAX_SIZE = 50 * 1024 * 1024
 
 const ANALYSIS_PROMPT = `You are an expert golf coach. Analyze this golf swing video and provide structured feedback on: 1) Swing mechanics (posture, stance, grip, backswing, downswing, follow-through), 2) Club path and angle at impact, 3) Tempo and timing across the full swing. For each area give a rating out of 10, a 2-3 sentence observation, and one specific improvement tip. Return the response as JSON with EXACTLY this structure and no other text:
 {
@@ -46,41 +46,38 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    // Parse multipart form data
-    const formData = await request.formData()
-    const videoFile = formData.get('video') as File | null
+    // Parse JSON body
+    const { blobUrl, mimeType } = await request.json() as { blobUrl: string; mimeType: string }
 
-    if (!videoFile) {
-      return NextResponse.json({ error: 'No video file provided.' }, { status: 400 })
+    if (!blobUrl || !mimeType) {
+      return NextResponse.json({ error: 'Missing blobUrl or mimeType.' }, { status: 400 })
     }
 
-    if (!ALLOWED_TYPES.includes(videoFile.type)) {
+    if (!ALLOWED_TYPES.includes(mimeType)) {
       return NextResponse.json(
         { error: 'Invalid file type. Please upload an MP4 or MOV video.' },
         { status: 400 }
       )
     }
 
-    if (videoFile.size > MAX_SIZE) {
-      return NextResponse.json(
-        { error: 'File too large. Maximum size is 50MB.' },
-        { status: 400 }
-      )
+    // Download video from blob storage
+    const blobResponse = await fetch(blobUrl)
+    if (!blobResponse.ok) {
+      return NextResponse.json({ error: 'Failed to retrieve uploaded video.' }, { status: 500 })
     }
-
-    const videoBuffer = Buffer.from(await videoFile.arrayBuffer())
+    const videoBuffer = Buffer.from(await blobResponse.arrayBuffer())
 
     // — Upload to Supabase Storage (authenticated users only) —
     let videoUrl: string | null = null
 
     if (user) {
-      const safeFileName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const storagePath = `${user.id}/${Date.now()}-${safeFileName}`
+      const ext = mimeType === 'video/quicktime' ? 'mov' : 'mp4'
+      const storagePath = `${user.id}/${Date.now()}-swing.${ext}`
 
       const { error: storageError } = await supabase.storage
         .from('golf-videos')
         .upload(storagePath, videoBuffer, {
-          contentType: videoFile.type,
+          contentType: mimeType,
           upsert: false,
         })
 
@@ -94,14 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     // — Write to temp file for Gemini File API —
-    const ext = videoFile.type === 'video/quicktime' ? 'mov' : 'mp4'
+    const ext = mimeType === 'video/quicktime' ? 'mov' : 'mp4'
     tempPath = join(tmpdir(), `swing-${Date.now()}.${ext}`)
     writeFileSync(tempPath, videoBuffer)
 
     // — Upload to Gemini File API —
     const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY!)
     const uploadResult = await fileManager.uploadFile(tempPath, {
-      mimeType: videoFile.type,
+      mimeType,
       displayName: 'Golf Swing Analysis',
     })
 
@@ -183,8 +180,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clean up the Gemini file (best-effort)
+    // Clean up the Gemini file and blob (best-effort)
     fileManager.deleteFile(uploadResult.file.name).catch(() => {})
+    del(blobUrl).catch(() => {})
 
     // — Save to database for authenticated users; return raw JSON for guests —
     if (user && videoUrl) {

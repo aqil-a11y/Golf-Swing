@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { upload } from '@vercel/blob/client'
 import { Upload, Video, X, Play } from 'lucide-react'
 
 interface VideoUploaderProps {
-  onAnalyze: (file: File) => void
+  onAnalyze: (blobUrl: string, mimeType: string) => void
   isAnalyzing: boolean
   analysisStep: string
 }
@@ -17,7 +18,12 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isAnalyzing) setIsUploading(false)
+  }, [isAnalyzing])
 
   const setVideoFile = (f: File) => {
     setError(null)
@@ -52,6 +58,25 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
     setError(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
+
+  const handleAnalyzeClick = async () => {
+    if (!file) return
+    setError(null)
+    setIsUploading(true)
+    try {
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+      })
+      onAnalyze(blob.url, file.type)
+    } catch {
+      setError('Upload failed. Please try again.')
+      setIsUploading(false)
+    }
+  }
+
+  const effectiveStep = isUploading && !isAnalyzing ? 'Uploading video...' : analysisStep
+  const showLoading = isAnalyzing || isUploading
 
   const formatSize = (bytes: number) =>
     bytes >= 1024 * 1024
@@ -95,7 +120,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
               controls
               className="w-full max-h-80 object-contain"
             />
-            {!isAnalyzing && (
+            {!showLoading && (
               <button
                 onClick={clearFile}
                 className="absolute top-3 right-3 w-8 h-8 bg-black/70 hover:bg-black rounded-full flex items-center justify-center transition-colors"
@@ -118,7 +143,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
           </div>
 
           {/* Analyze button / loading state */}
-          {isAnalyzing ? (
+          {showLoading ? (
             <div className="card text-center py-8">
               <div className="flex items-center justify-center mb-4">
                 <div className="relative">
@@ -128,15 +153,15 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
                   </div>
                 </div>
               </div>
-              <p className="text-white font-semibold mb-1">{analysisStep || 'Analyzing...'}</p>
+              <p className="text-white font-semibold mb-1">{effectiveStep || 'Analyzing...'}</p>
               <p className="text-slate-500 text-sm">This may take up to 60 seconds</p>
 
               {/* Progress steps */}
               <div className="flex items-center justify-center gap-2 mt-5">
                 {['Uploading', 'Processing', 'Analyzing'].map((step, i) => {
-                  const stepIdx = analysisStep.includes('Uploading')
+                  const stepIdx = effectiveStep.includes('Uploading')
                     ? 0
-                    : analysisStep.includes('Processing') || analysisStep.includes('AI')
+                    : effectiveStep.includes('Processing') || effectiveStep.includes('AI')
                     ? 1
                     : 2
                   return (
@@ -153,7 +178,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
             </div>
           ) : (
             <button
-              onClick={() => onAnalyze(file)}
+              onClick={handleAnalyzeClick}
               className="btn-primary w-full text-base py-4 flex items-center justify-center gap-2"
             >
               <Play className="w-5 h-5" />

@@ -39,7 +39,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
     setTrialExhausted(!isLoggedIn && count >= FREE_TRIAL_LIMIT)
   }, [isLoggedIn])
 
-  const handleAnalyze = async (file: File) => {
+  const handleAnalyze = async (blobUrl: string, mimeType: string) => {
     if (!isLoggedIn && trialCount >= FREE_TRIAL_LIMIT) {
       setTrialExhausted(true)
       return
@@ -48,17 +48,15 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
     setIsAnalyzing(true)
     setError(null)
     setResult(null)
-    setAnalysisStep('Uploading video...')
+    setAnalysisStep('Processing with AI...')
 
     try {
-      const formData = new FormData()
-      formData.append('video', file)
-
-      const stepTimer = setTimeout(() => setAnalysisStep('Processing with AI...'), 8000)
+      const stepTimer = setTimeout(() => setAnalysisStep('Analyzing...'), 8000)
 
       const res = await fetch('/api/analyze', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blobUrl, mimeType }),
       })
 
       clearTimeout(stepTimer)

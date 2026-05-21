@@ -6,7 +6,11 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(rm \"/Users/Animaltechnology/Documents/Claude/Projects/Golf Swing/1. Build/.git/HEAD.lock\")"
+      "Bash(rm \"/Users/Animaltechnology/Documents/Claude/Projects/Golf Swing/1. Build/.git/HEAD.lock\")",
+      "Bash(grep -E '\\\\.\\(ts|tsx|json\\)$')",
+      "Bash(npm install *)",
+      "Bash(npm ls *)",
+      "Bash(git *)"
     ]
   }
 }
