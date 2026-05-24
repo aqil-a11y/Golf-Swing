@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Upload, Video, X, Play } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 const CLUBS = [
   'Driver', '3 Wood', '5 Wood', '3 Iron', '4 Iron', '5 Iron',
@@ -150,15 +151,35 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
 
       setIsUploading(true)
 
-      const formData = new FormData()
-      formData.append('file', uploadFile)
-
-      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+      // Step 1: get a signed upload URL (no file bytes hit Vercel)
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type }),
+      })
       if (!uploadRes.ok) throw new Error('Upload failed. Please try again.')
 
-      const { storageKey, signedUrl } = await uploadRes.json() as { storageKey: string; signedUrl: string }
+      const { storageKey, signedUploadUrl } = await uploadRes.json() as { storageKey: string; signedUploadUrl: string }
 
-      onAnalyze(signedUrl, storageKey, uploadFile.type, club || null, title.trim() || null)
+      // Step 2: PUT file directly to Supabase Storage (bypasses Vercel size limit)
+      const putRes = await fetch(signedUploadUrl, {
+        method: 'PUT',
+        body: uploadFile,
+        headers: { 'Content-Type': uploadFile.type },
+      })
+      if (!putRes.ok) throw new Error('Upload failed. Please try again.')
+
+      // Step 3: get a signed download URL for the analyze step
+      const supabase = createClient()
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('golf-videos')
+        .createSignedUrl(storageKey, 600)
+
+      if (signedError || !signedData?.signedUrl) {
+        throw new Error('Could not get video URL. Please try again.')
+      }
+
+      onAnalyze(signedData.signedUrl, storageKey, uploadFile.type, club || null, title.trim() || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
       setIsCompressing(false)

@@ -3,11 +3,10 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File | null
+    const { filename, contentType } = await request.json() as { filename: string; contentType: string }
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided.' }, { status: 400 })
+    if (!filename || !contentType) {
+      return NextResponse.json({ error: 'filename and contentType are required.' }, { status: 400 })
     }
 
     const supabase = createClient(
@@ -15,35 +14,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const storagePath = `temp/${Date.now()}-${safeFilename}`
+    const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const storageKey = `temp/${Date.now()}-${safeFilename}`
 
-    const arrayBuffer = await file.arrayBuffer()
-    const { error: uploadError } = await supabase.storage
+    const { data, error } = await supabase.storage
       .from('golf-videos')
-      .upload(storagePath, Buffer.from(arrayBuffer), {
-        contentType: file.type,
-        upsert: false,
-      })
+      .createSignedUploadUrl(storageKey)
 
-    if (uploadError) {
-      console.error('Storage upload error:', uploadError)
-      return NextResponse.json({ error: 'Upload failed.' }, { status: 500 })
+    if (error || !data?.signedUrl) {
+      console.error('Signed upload URL error:', error)
+      return NextResponse.json({ error: 'Could not create upload URL.' }, { status: 500 })
     }
 
-    const { data: signedData, error: signedError } = await supabase.storage
-      .from('golf-videos')
-      .createSignedUrl(storagePath, 600)
-
-    if (signedError || !signedData?.signedUrl) {
-      return NextResponse.json({ error: 'Could not create signed URL.' }, { status: 500 })
-    }
-
-    return NextResponse.json({ storageKey: storagePath, signedUrl: signedData.signedUrl })
+    return NextResponse.json({ storageKey, signedUploadUrl: data.signedUrl })
   } catch (err) {
-    console.error('Upload error:', err)
+    console.error('Upload route error:', err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Upload failed.' },
+      { error: err instanceof Error ? err.message : 'Request failed.' },
       { status: 500 }
     )
   }
