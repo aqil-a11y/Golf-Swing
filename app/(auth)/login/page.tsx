@@ -2,12 +2,22 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LogIn, CheckCircle, AlertCircle } from 'lucide-react'
+
+const ERROR_MESSAGES: Record<string, string> = {
+  confirmation_failed: 'Email confirmation failed. The link may have expired — please try signing up again.',
+  reset_failed: 'Password reset link failed or expired. Please request a new one.',
+  missing_token: 'Invalid confirmation link. Please request a new one.',
+}
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const errorParam = searchParams.get('error')
+  const confirmed = searchParams.get('confirmed')
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -32,6 +42,8 @@ export default function LoginPage() {
     router.refresh()
   }
 
+  const urlError = errorParam ? (ERROR_MESSAGES[errorParam] ?? errorParam) : null
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       {/* Brand */}
@@ -48,6 +60,20 @@ export default function LoginPage() {
           <p className="text-slate-400 text-sm">Sign in to your account</p>
         </div>
 
+        {confirmed && (
+          <div className="mb-5 bg-flag/10 border border-flag/30 text-flag text-sm rounded-lg px-4 py-3 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 shrink-0" />
+            Email confirmed! You can now sign in.
+          </div>
+        )}
+
+        {urlError && (
+          <div className="mb-5 bg-red-900/30 border border-red-800 text-red-300 text-sm rounded-lg px-4 py-3 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {urlError}
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
@@ -62,7 +88,12 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-300">Password</label>
+              <Link href="/forgot-password" className="text-xs text-slate-500 hover:text-flag transition-colors">
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}

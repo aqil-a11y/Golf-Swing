@@ -97,6 +97,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const [compressedFile, setCompressedFile] = useState<File | null>(null)
   const [showCompressionModal, setShowCompressionModal] = useState(false)
   const [compressionPass, setCompressionPass] = useState(0)
+  const [clubTouched, setClubTouched] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
     setError(null)
     setClub('')
     setTitle('')
+    setClubTouched(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -175,6 +177,10 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
 
   const handleAnalyzeClick = async () => {
     if (!file) return
+    if (!club) {
+      setClubTouched(true)
+      return
+    }
     setError(null)
 
     try {
@@ -330,17 +336,25 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
           {!isBusy && (
             <>
               <div>
-                <label className="block text-slate-400 text-sm mb-1.5">Club (optional)</label>
+                <label className="block text-slate-400 text-sm mb-1.5">
+                  Club
+                  <span className="text-red-400 ml-1">(required)</span>
+                </label>
                 <select
                   value={club}
-                  onChange={(e) => setClub(e.target.value)}
-                  className="w-full bg-turf-800 border border-turf-600 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-flag/50"
+                  onChange={(e) => { setClub(e.target.value); setClubTouched(false) }}
+                  className={`w-full bg-turf-800 border text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-flag/50 ${
+                    clubTouched && !club ? 'border-red-700' : 'border-turf-600'
+                  }`}
                 >
-                  <option value="">Select club (optional)</option>
+                  <option value="">Select a club</option>
                   {CLUBS.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                {clubTouched && !club && (
+                  <p className="text-red-400 text-xs mt-1.5">Please select a club to continue</p>
+                )}
               </div>
 
               <div>
@@ -387,6 +401,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
           ) : (
             <button
               onClick={handleAnalyzeClick}
+              disabled={!club}
               className="btn-primary w-full text-base py-4 flex items-center justify-center gap-2"
             >
               <Play className="w-5 h-5" />

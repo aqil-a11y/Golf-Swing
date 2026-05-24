@@ -91,8 +91,13 @@ export default async function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-turf-600 px-6 py-6 text-center text-slate-600 text-sm">
-        SwingAI — Golf analysis powered by Google Gemini
+      <footer className="border-t border-turf-600 px-6 py-6 text-center text-slate-600 text-sm space-y-1">
+        <div className="flex items-center justify-center gap-4">
+          <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
+          <span>·</span>
+          <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms of Service</Link>
+        </div>
+        <p>SwingAI — Golf analysis powered by Google Gemini</p>
       </footer>
     </main>
   )

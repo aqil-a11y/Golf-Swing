@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { BarChart2, Clock, LogOut, Menu, X } from 'lucide-react'
+import { BarChart2, Clock, LogOut, Menu, User, X } from 'lucide-react'
 import { useState } from 'react'
 
 interface NavbarProps {
@@ -25,6 +25,7 @@ export function Navbar({ userEmail }: NavbarProps) {
   const navLinks = [
     { href: '/analyze', label: 'Analyze', icon: <BarChart2 className="w-4 h-4" /> },
     { href: '/history', label: 'History', icon: <Clock className="w-4 h-4" /> },
+    { href: '/profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
   ]
 
   return (

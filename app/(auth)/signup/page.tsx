@@ -9,6 +9,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -116,13 +117,32 @@ export default function SignupPage() {
             </div>
           </div>
 
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-turf-600 bg-turf-800 accent-flag shrink-0 cursor-pointer"
+            />
+            <span className="text-slate-400 text-sm leading-snug">
+              I agree to the{' '}
+              <Link href="/terms" target="_blank" className="text-flag hover:text-flag-light transition-colors">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" target="_blank" className="text-flag hover:text-flag-light transition-colors">
+                Privacy Policy
+              </Link>
+            </span>
+          </label>
+
           {error && (
             <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm rounded-lg px-4 py-3">
               {error}
             </div>
           )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
+          <button type="submit" disabled={loading || !termsAccepted} className="btn-primary w-full flex items-center justify-center gap-2">
             {loading ? (
               <>
                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
