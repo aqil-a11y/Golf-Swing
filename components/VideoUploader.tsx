@@ -18,7 +18,7 @@ interface VideoUploaderProps {
 
 const MAX_SIZE = 200 * 1024 * 1024
 const COMPRESS_THRESHOLD = 52_428_800  // 50 MB
-const COMPRESS_TARGET = 51_380_224     // 49 MB
+const COMPRESS_TARGET = 41_943_040     // 40 MB
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime']
 
 function getRecorderMimeType(): string {
