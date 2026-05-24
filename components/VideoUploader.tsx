@@ -292,7 +292,6 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
                 {isDragging ? 'Drop your video here' : 'Upload your swing video'}
               </p>
               <p className="text-slate-400 text-sm">Drag & drop or click to browse</p>
-              <p className="text-slate-600 text-xs mt-2">MP4 or MOV · Max 200MB</p>
             </div>
           </div>
         </div>

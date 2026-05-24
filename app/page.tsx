@@ -56,7 +56,7 @@ export default async function Home() {
               Sign In
             </Link>
           </div>
-          <p className="text-slate-600 text-sm mt-4">10 free analyses · No credit card required</p>
+          <p className="text-slate-600 text-sm mt-4">5 free analyses · No credit card required</p>
         </div>
       </section>
 

@@ -8,10 +8,8 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
-  Star,
   Clock,
   BarChart2,
-  Video,
   PlusCircle,
 } from 'lucide-react'
 
@@ -36,7 +34,7 @@ function ConfirmDeleteModal({
         </div>
         <h3 className="text-white font-semibold text-center mb-2">Delete Analysis?</h3>
         <p className="text-slate-400 text-sm text-center mb-6">
-          This will permanently delete the analysis and the uploaded video. This cannot be undone.
+          This will permanently delete this analysis. This cannot be undone.
         </p>
         <div className="flex gap-3">
           <button onClick={onCancel} disabled={loading} className="btn-ghost flex-1 border border-turf-600">
@@ -97,10 +95,6 @@ function HistoryItem({
     }
   }
 
-  const overallRating = analysis.analysis_json?.overall_rating ?? 0
-  const ratingColor =
-    overallRating >= 8 ? 'text-flag' : overallRating >= 6 ? 'text-yellow-400' : 'text-orange-400'
-
   return (
     <>
       {showConfirm && (
@@ -114,49 +108,25 @@ function HistoryItem({
       <article className="card hover:bg-turf-800 transition-colors duration-200">
         {/* Top row */}
         <div className="flex items-start gap-4 mb-4">
-          {/* Video thumbnail */}
-          <div className="shrink-0 w-24 h-16 rounded-lg overflow-hidden bg-black border border-turf-600">
-            <video
-              src={analysis.video_url}
-              className="w-full h-full object-cover"
-              muted
-              playsInline
-              preload="metadata"
-            />
-          </div>
-
           {/* Meta */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
               <Clock className="w-3 h-3" />
               {date} · {time}
+              {analysis.club && (
+                <span className="inline-flex items-center bg-flag/10 border border-flag/20 text-flag text-xs font-medium px-2 py-0.5 rounded-full ml-1">
+                  {analysis.club}
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2 mb-2">
-              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-              <span className={`text-2xl font-bold ${ratingColor}`}>{overallRating}</span>
-              <span className="text-slate-500 text-sm">/10 overall</span>
-            </div>
+            <h3 className="text-white font-semibold text-sm mb-1">
+              {analysis.title || 'Swing Analysis'}
+            </h3>
             {analysis.analysis_json?.summary && (
               <p className="text-slate-400 text-xs leading-relaxed line-clamp-2">
                 {analysis.analysis_json.summary}
               </p>
             )}
-          </div>
-
-          {/* Rating pills */}
-          <div className="hidden sm:flex flex-col gap-1.5 shrink-0">
-            {analysis.analysis_json?.categories?.slice(0, 3).map((cat) => (
-              <div key={cat.name} className="flex items-center gap-2 text-xs">
-                <div className="w-2 h-2 rounded-full bg-turf-700 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${cat.rating >= 7 ? 'bg-flag' : cat.rating >= 5 ? 'bg-yellow-500' : 'bg-orange-500'}`}
-                    style={{ width: `${cat.rating * 10}%` }}
-                  />
-                </div>
-                <span className="text-slate-500 truncate max-w-[100px]">{cat.name}</span>
-                <span className="text-slate-300 font-medium">{cat.rating}</span>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -170,16 +140,6 @@ function HistoryItem({
             {expanded ? 'Hide' : 'View'} full analysis
             {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
-
-          <a
-            href={analysis.video_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-white transition-colors font-medium ml-2"
-          >
-            <Video className="w-4 h-4" />
-            Video
-          </a>
 
           <button
             onClick={() => setShowConfirm(true)}

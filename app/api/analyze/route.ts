@@ -10,29 +10,25 @@ export const maxDuration = 120
 
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 
-const ANALYSIS_PROMPT = `You are an expert golf coach. Analyze this golf swing video and provide structured feedback on: 1) Swing mechanics (posture, stance, grip, backswing, downswing, follow-through), 2) Club path and angle at impact, 3) Tempo and timing across the full swing. For each area give a rating out of 10, a 2-3 sentence observation, and one specific improvement tip. Return the response as JSON with EXACTLY this structure and no other text:
+const ANALYSIS_PROMPT = `You are an expert golf coach. Analyze this golf swing video and provide structured feedback on: 1) Swing mechanics (posture, stance, grip, backswing, downswing, follow-through), 2) Club path and angle at impact, 3) Tempo and timing across the full swing. For each area write a 2-3 sentence observation and one specific practice drill the golfer can do on the range to improve that area. Return the response as JSON with EXACTLY this structure and no other text:
 {
   "categories": [
     {
       "name": "Swing Mechanics",
-      "rating": <number 1-10>,
       "observation": "<2-3 sentences>",
-      "tip": "<one specific tip>"
+      "drill": "<one specific practice drill>"
     },
     {
       "name": "Club Path & Impact",
-      "rating": <number 1-10>,
       "observation": "<2-3 sentences>",
-      "tip": "<one specific tip>"
+      "drill": "<one specific practice drill>"
     },
     {
       "name": "Tempo & Timing",
-      "rating": <number 1-10>,
       "observation": "<2-3 sentences>",
-      "tip": "<one specific tip>"
+      "drill": "<one specific practice drill>"
     }
   ],
-  "overall_rating": <average of the three ratings, rounded to 1 decimal>,
   "summary": "<2-3 sentence overall coaching summary>"
 }`
 

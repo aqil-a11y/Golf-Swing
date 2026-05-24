@@ -5,10 +5,10 @@ import Link from 'next/link'
 import { VideoUploader } from '@/components/VideoUploader'
 import { AnalysisCard } from '@/components/AnalysisCard'
 import { AnalysisResult } from '@/lib/types'
-import { RotateCcw, Star, Clock, TrendingUp, UserPlus, Lock } from 'lucide-react'
+import { RotateCcw, Clock, TrendingUp, UserPlus, Lock } from 'lucide-react'
 
 const FREE_TRIAL_KEY = 'swingai_free_count'
-const FREE_TRIAL_LIMIT = 10
+const FREE_TRIAL_LIMIT = 5
 
 function getTrialCount(): number {
   if (typeof window === 'undefined') return 0
@@ -32,6 +32,8 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
   const [error, setError] = useState<string | null>(null)
   const [trialCount, setTrialCount] = useState(0)
   const [trialExhausted, setTrialExhausted] = useState(false)
+  const [resultClub, setResultClub] = useState<string | null>(null)
+  const [resultTitle, setResultTitle] = useState<string | null>(null)
 
   useEffect(() => {
     const count = getTrialCount()
@@ -76,6 +78,8 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
       }
 
       setResult(analysisJson)
+      setResultClub(club)
+      setResultTitle(title)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
@@ -87,6 +91,8 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
   const handleReset = () => {
     setResult(null)
     setError(null)
+    setResultClub(null)
+    setResultTitle(null)
   }
 
   // Guest free trial exhausted — sign up wall
@@ -96,7 +102,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
         <div className="w-16 h-16 bg-flag/10 rounded-full flex items-center justify-center mx-auto mb-5">
           <Lock className="w-8 h-8 text-flag" />
         </div>
-        <h2 className="text-white font-bold text-2xl mb-2">You&apos;ve used all 10 free analyses</h2>
+        <h2 className="text-white font-bold text-2xl mb-2">You&apos;ve used all 5 free analyses</h2>
         <p className="text-slate-400 mb-8 max-w-sm mx-auto">
           Sign up for free to continue analyzing your swing and keep your full history.
         </p>
@@ -118,28 +124,24 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
 
     return (
       <div className="animate-fade-in space-y-8">
-        {/* Overall score banner */}
+        {/* Summary card */}
         <div className="card bg-gradient-to-br from-turf-800 to-turf-900 border-flag/20">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-white font-bold text-xl mb-2">Swing Analysis Complete</h2>
-              {result.summary && (
-                <p className="text-slate-300 text-sm leading-relaxed max-w-lg">{result.summary}</p>
+          <h2 className="text-white font-bold text-xl mb-2">Swing Analysis Complete</h2>
+          {(resultClub || resultTitle) && (
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {resultClub && (
+                <span className="inline-flex items-center bg-flag/10 border border-flag/20 text-flag text-xs font-medium px-2.5 py-1 rounded-full">
+                  Club: {resultClub}
+                </span>
+              )}
+              {resultTitle && (
+                <span className="text-slate-400 text-sm italic">{resultTitle}</span>
               )}
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="text-center bg-turf-900/60 rounded-2xl px-6 py-4 border border-turf-600">
-                <div className="flex items-center gap-1 justify-center mb-1">
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  <span className="text-slate-400 text-xs font-medium uppercase tracking-wider">Overall</span>
-                </div>
-                <div className="text-4xl font-bold text-white">
-                  {result.overall_rating}
-                  <span className="text-lg text-slate-500 font-normal">/10</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
+          {result.summary && (
+            <p className="text-slate-300 text-sm leading-relaxed max-w-lg">{result.summary}</p>
+          )}
         </div>
 
         {/* Guest signup CTA */}
@@ -148,7 +150,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
             <div>
               <p className="text-white font-medium text-sm">
                 {trialExhausted
-                  ? 'You\'ve used all 10 free analyses.'
+                  ? 'You\'ve used all 5 free analyses.'
                   : `${remainingFree} free ${remainingFree === 1 ? 'analysis' : 'analyses'} remaining.`}
               </p>
               <p className="text-slate-400 text-xs mt-0.5">Sign up to save your history and get unlimited analyses.</p>
