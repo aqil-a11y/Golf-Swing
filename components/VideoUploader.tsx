@@ -26,7 +26,7 @@ function getRecorderMimeType(): string {
   return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? 'video/webm'
 }
 
-function compressVideo(file: File): Promise<File> {
+function compressVideo(file: File, targetBytes = COMPRESS_TARGET): Promise<File> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file)
     const videoEl = document.createElement('video')
@@ -41,7 +41,7 @@ function compressVideo(file: File): Promise<File> {
         return
       }
 
-      const videoBitsPerSecond = Math.floor((COMPRESS_TARGET * 8) / duration)
+      const videoBitsPerSecond = Math.floor((targetBytes * 8) / duration)
       const canvas = document.createElement('canvas')
       canvas.width = videoWidth || 1280
       canvas.height = videoHeight || 720
@@ -94,6 +94,9 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const [isCompressing, setIsCompressing] = useState(false)
   const [club, setClub] = useState('')
   const [title, setTitle] = useState('')
+  const [compressedFile, setCompressedFile] = useState<File | null>(null)
+  const [showCompressionModal, setShowCompressionModal] = useState(false)
+  const [compressionPass, setCompressionPass] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -136,53 +139,112 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const runUpload = async (uploadFile: File) => {
+    setIsUploading(true)
+
+    // Step 1: get a signed upload URL (no file bytes hit Vercel)
+    const uploadRes = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type }),
+    })
+    if (!uploadRes.ok) throw new Error('Upload failed. Please try again.')
+
+    const { storageKey, signedUploadUrl } = await uploadRes.json() as { storageKey: string; signedUploadUrl: string }
+
+    // Step 2: PUT file directly to Supabase Storage (bypasses Vercel size limit)
+    const putRes = await fetch(signedUploadUrl, {
+      method: 'PUT',
+      body: uploadFile,
+      headers: { 'Content-Type': uploadFile.type },
+    })
+    if (!putRes.ok) throw new Error('Upload failed. Please try again.')
+
+    // Step 3: get a signed download URL for the analyze step
+    const supabase = createClient()
+    const { data: signedData, error: signedError } = await supabase.storage
+      .from('golf-videos')
+      .createSignedUrl(storageKey, 600)
+
+    if (signedError || !signedData?.signedUrl) {
+      throw new Error('Could not get video URL. Please try again.')
+    }
+
+    return { storageKey, signedUrl: signedData.signedUrl }
+  }
+
   const handleAnalyzeClick = async () => {
     if (!file) return
     setError(null)
 
     try {
-      let uploadFile = file
-
       if (file.size > COMPRESS_THRESHOLD) {
         setIsCompressing(true)
-        uploadFile = await compressVideo(file)
+        const result = await compressVideo(file)
         setIsCompressing(false)
+        setCompressedFile(result)
+        setShowCompressionModal(true)
+        return
       }
 
-      setIsUploading(true)
+      const { storageKey, signedUrl } = await runUpload(file)
+      onAnalyze(signedUrl, storageKey, file.type, club || null, title.trim() || null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
+      setIsCompressing(false)
+      setIsUploading(false)
+    }
+  }
 
-      // Step 1: get a signed upload URL (no file bytes hit Vercel)
+  const handleRecompress = async () => {
+    if (!file) return
+    setIsCompressing(true)
+    const newPass = compressionPass + 1
+    setCompressionPass(newPass)
+    const target = newPass === 1 ? 31_457_280 : 20_971_520
+    try {
+      const recompressed = await compressVideo(file, target)
+      setCompressedFile(recompressed)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Compression failed.')
+    } finally {
+      setIsCompressing(false)
+    }
+  }
+
+  const handleUploadCompressed = async () => {
+    if (!compressedFile) return
+    setError(null)
+    setIsUploading(true)
+    try {
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: uploadFile.name, contentType: uploadFile.type }),
+        body: JSON.stringify({ filename: compressedFile.name, contentType: compressedFile.type }),
       })
-      if (!uploadRes.ok) throw new Error('Upload failed. Please try again.')
+      if (!uploadRes.ok) throw new Error(`Upload failed — file is ${(compressedFile.size / 1024 / 1024).toFixed(1)}MB. Supabase requires files under 50MB. Try compressing again.`)
 
       const { storageKey, signedUploadUrl } = await uploadRes.json() as { storageKey: string; signedUploadUrl: string }
 
-      // Step 2: PUT file directly to Supabase Storage (bypasses Vercel size limit)
       const putRes = await fetch(signedUploadUrl, {
         method: 'PUT',
-        body: uploadFile,
-        headers: { 'Content-Type': uploadFile.type },
+        body: compressedFile,
+        headers: { 'Content-Type': compressedFile.type },
       })
-      if (!putRes.ok) throw new Error('Upload failed. Please try again.')
+      if (!putRes.ok) throw new Error(`Upload failed — file is ${(compressedFile.size / 1024 / 1024).toFixed(1)}MB. Supabase requires files under 50MB. Try compressing again.`)
 
-      // Step 3: get a signed download URL for the analyze step
       const supabase = createClient()
       const { data: signedData, error: signedError } = await supabase.storage
         .from('golf-videos')
         .createSignedUrl(storageKey, 600)
 
-      if (signedError || !signedData?.signedUrl) {
-        throw new Error('Could not get video URL. Please try again.')
-      }
+      if (signedError || !signedData?.signedUrl) throw new Error('Could not get video URL. Please try again.')
 
-      onAnalyze(signedData.signedUrl, storageKey, uploadFile.type, club || null, title.trim() || null)
+      setShowCompressionModal(false)
+      setCompressedFile(null)
+      onAnalyze(signedData.signedUrl, storageKey, compressedFile.type, club || null, title.trim() || null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
-      setIsCompressing(false)
       setIsUploading(false)
     }
   }
@@ -351,6 +413,68 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
           if (f) setVideoFile(f)
         }}
       />
+
+      {/* Compression confirmation modal */}
+      {showCompressionModal && compressedFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-turf-900 border border-turf-600 rounded-2xl p-8 max-w-sm w-full mx-4 space-y-5">
+            <h2 className="text-white text-xl font-semibold">Video Compressed</h2>
+
+            <p className="text-slate-300 text-sm">
+              Compressed size: {(compressedFile.size / 1024 / 1024).toFixed(1)} MB
+            </p>
+
+            {compressedFile.size > 52_428_800 && (
+              <p className="text-amber-400 text-sm">
+                Still over 50MB — compress again or use a shorter clip
+              </p>
+            )}
+
+            <button
+              onClick={handleRecompress}
+              disabled={isCompressing}
+              className="w-full flex items-center justify-center gap-2 bg-turf-800 hover:bg-turf-700 border border-turf-600 text-white rounded-xl px-4 py-3 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isCompressing ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-turf-600 border-t-white animate-spin" />
+                  Compressing...
+                </>
+              ) : (
+                'Compress Again'
+              )}
+            </button>
+
+            <div className="space-y-1.5">
+              <button
+                onClick={handleUploadCompressed}
+                disabled={compressedFile.size > 52_428_800 || isCompressing}
+                className={`btn-primary w-full py-3 flex items-center justify-center gap-2 ${
+                  compressedFile.size > 52_428_800 ? 'opacity-40 cursor-not-allowed' : ''
+                }`}
+              >
+                <Play className="w-4 h-4" />
+                Upload & Analyze
+              </button>
+              {compressedFile.size > 52_428_800 && (
+                <p className="text-slate-500 text-xs text-center">File must be under 50MB to upload</p>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setCompressedFile(null)
+                setShowCompressionModal(false)
+                setCompressionPass(0)
+                setIsCompressing(false)
+              }}
+              className="w-full text-slate-400 hover:text-white text-sm transition-colors py-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
