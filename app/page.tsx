@@ -45,7 +45,7 @@ export default async function Home() {
 
           <p className="text-slate-400 text-lg max-w-xl mx-auto mb-10 leading-relaxed">
             Upload your golf swing video and receive instant, detailed feedback on mechanics,
-            club path, tempo, and more — powered by Google Gemini.
+            club path, tempo, and more.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -97,7 +97,7 @@ export default async function Home() {
           <span>·</span>
           <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms of Service</Link>
         </div>
-        <p>SwingAI — Golf analysis powered by Google Gemini</p>
+        <p>SwingAI</p>
       </footer>
     </main>
   )

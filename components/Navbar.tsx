@@ -6,11 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { BarChart2, Clock, LogOut, Menu, User, X } from 'lucide-react'
 import { useState } from 'react'
 
-interface NavbarProps {
-  userEmail: string
-}
-
-export function Navbar({ userEmail }: NavbarProps) {
+export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -59,7 +55,6 @@ export function Navbar({ userEmail }: NavbarProps) {
 
         {/* User + signout */}
         <div className="hidden sm:flex items-center gap-3">
-          <span className="text-slate-500 text-xs truncate max-w-[160px]">{userEmail}</span>
           <button onClick={handleSignOut} className="btn-ghost flex items-center gap-1.5 text-sm py-1.5">
             <LogOut className="w-4 h-4" />
             Sign out
@@ -95,7 +90,6 @@ export function Navbar({ userEmail }: NavbarProps) {
             </Link>
           ))}
           <div className="pt-3 border-t border-turf-700 mt-3">
-            <p className="text-slate-500 text-xs px-4 mb-2 truncate">{userEmail}</p>
             <button
               onClick={handleSignOut}
               className="flex items-center gap-2 w-full px-4 py-3 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-turf-800 transition-colors"

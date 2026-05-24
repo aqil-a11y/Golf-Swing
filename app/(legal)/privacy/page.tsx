@@ -37,9 +37,9 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-white mb-3">How we use it</h2>
             <p>
               Your email is used to authenticate your account and send transactional messages
-              (account confirmation, password resets). Your golf swing videos are sent to Google
-              Gemini for AI analysis. We do not sell your data to third parties or use it for
-              advertising purposes.
+              (account confirmation, password resets). Your golf swing videos are processed by our
+              AI to generate analysis results. We do not sell your data to third parties or use it
+              for advertising purposes.
             </p>
           </section>
 
@@ -62,22 +62,13 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-          <section>
-            <h2 className="text-xl font-semibold text-white mb-3">Contact</h2>
-            <p>
-              If you have questions about this policy or your data, contact us at{' '}
-              <a href="mailto:animaltechnologyrsa@gmail.com" className="text-flag hover:text-flag-light transition-colors">
-                animaltechnologyrsa@gmail.com
-              </a>.
-            </p>
-          </section>
         </div>
       </main>
 
       <footer className="border-t border-turf-600 px-6 py-6 text-center text-slate-600 text-sm">
         <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms of Service</Link>
         <span className="mx-3">·</span>
-        <span>SwingAI — Golf analysis powered by Google Gemini</span>
+        <span>SwingAI</span>
       </footer>
     </div>
   )
