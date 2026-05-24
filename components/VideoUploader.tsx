@@ -1,8 +1,31 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Upload, Video, X, Play } from 'lucide-react'
+import { Upload, Video, X, Play, ArrowUpDown, Maximize2, Crosshair, type LucideIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+
+const FILMING_TIPS: { name: string; tip: string; icon: LucideIcon }[] = [
+  {
+    name: 'Camera Angle',
+    tip: 'Film from directly down-the-line (behind the ball, facing target) or face-on',
+    icon: Video,
+  },
+  {
+    name: 'Camera Height',
+    tip: 'Position the camera at hand height — around hip to waist level',
+    icon: ArrowUpDown,
+  },
+  {
+    name: 'Full Body Frame',
+    tip: 'Keep your full body in frame from head to feet',
+    icon: Maximize2,
+  },
+  {
+    name: 'Stay Steady',
+    tip: 'Use a tripod, golf bag, or have someone hold it steady — no panning',
+    icon: Crosshair,
+  },
+]
 
 const CLUBS = [
   'Driver', '3 Wood', '5 Wood', '3 Iron', '4 Iron', '5 Iron',
@@ -11,7 +34,7 @@ const CLUBS = [
 ]
 
 interface VideoUploaderProps {
-  onAnalyze: (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null) => void
+  onAnalyze: (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null, videoPreviewUrl?: string | null) => void
   isAnalyzing: boolean
   analysisStep: string
 }
@@ -98,7 +121,12 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const [showCompressionModal, setShowCompressionModal] = useState(false)
   const [compressionPass, setCompressionPass] = useState(0)
   const [clubTouched, setClubTouched] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setIsMobile('ontouchstart' in window)
+  }, [])
 
   useEffect(() => {
     if (!isAnalyzing) setIsUploading(false)
@@ -194,7 +222,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
       }
 
       const { storageKey, signedUrl } = await runUpload(file)
-      onAnalyze(signedUrl, storageKey, file.type, club || null, title.trim() || null)
+      onAnalyze(signedUrl, storageKey, file.type, club || null, title.trim() || null, previewUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
       setIsCompressing(false)
@@ -249,7 +277,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
 
       setShowCompressionModal(false)
       setCompressedFile(null)
-      onAnalyze(signedData.signedUrl, storageKey, compressedFile.type, club || null, title.trim() || null)
+      onAnalyze(signedData.signedUrl, storageKey, compressedFile.type, club || null, title.trim() || null, previewUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
       setIsUploading(false)
@@ -277,30 +305,55 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   return (
     <div className="w-full">
       {!file ? (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200
-            ${isDragging
-              ? 'border-flag bg-flag/10 scale-[1.01]'
-              : 'border-turf-600 hover:border-flag/50 hover:bg-turf-800/50'
-            }`}
-        >
-          <div className="flex flex-col items-center gap-4">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors
-              ${isDragging ? 'bg-flag/20' : 'bg-turf-800'}`}>
-              <Upload className={`w-7 h-7 transition-colors ${isDragging ? 'text-flag' : 'text-slate-400'}`} />
-            </div>
-            <div>
-              <p className="text-white font-semibold text-lg mb-1">
-                {isDragging ? 'Drop your video here' : 'Upload your swing video'}
-              </p>
-              <p className="text-slate-400 text-sm">Drag & drop or click to browse</p>
+        <>
+          <div
+            onDragOver={isMobile ? undefined : (e) => { e.preventDefault(); setIsDragging(true) }}
+            onDragLeave={isMobile ? undefined : () => setIsDragging(false)}
+            onDrop={isMobile ? undefined : handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200
+              ${isDragging
+                ? 'border-flag bg-flag/10 scale-[1.01]'
+                : 'border-turf-600 hover:border-flag/50 hover:bg-turf-800/50'
+              }`}
+          >
+            <div className="flex flex-col items-center gap-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors
+                ${isDragging ? 'bg-flag/20' : 'bg-turf-800'}`}>
+                <Upload className={`w-7 h-7 transition-colors ${isDragging ? 'text-flag' : 'text-slate-400'}`} />
+              </div>
+              <div>
+                <p className="text-white font-semibold text-lg mb-1">
+                  {isDragging ? 'Drop your video here' : 'Upload your swing video'}
+                </p>
+                <p className="text-slate-400 text-sm">
+                  {isMobile ? 'Tap to select from your camera roll' : 'Drag & drop or click to browse'}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div className="mt-4">
+            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide mb-3">How to film your swing</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {FILMING_TIPS.map(({ name, tip, icon: Icon }, i) => (
+                <div
+                  key={name}
+                  className="card animate-slide-up"
+                  style={{ animationDelay: `${i * 75}ms` }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 bg-flag/10 rounded-lg flex items-center justify-center shrink-0">
+                      <Icon className="w-3.5 h-3.5 text-flag" />
+                    </div>
+                    <h4 className="text-white text-sm font-semibold">{name}</h4>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed">{tip}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
       ) : (
         <div className="space-y-5">
           {/* Video preview */}
@@ -422,6 +475,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
         ref={fileInputRef}
         type="file"
         accept="video/mp4,video/quicktime"
+        capture={isMobile ? 'environment' : undefined}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0]

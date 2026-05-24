@@ -163,9 +163,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clean up Gemini file and staging storage (best-effort)
+    // Clean up Gemini file (best-effort)
     fileManager.deleteFile(uploadResult.file.name).catch(() => {})
-    supabase.storage.from('golf-videos').remove([storageKey]).catch(() => {})
 
     // — Save to database for authenticated users; return raw JSON for guests —
     if (user) {
@@ -185,10 +184,18 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to save the analysis. Please try again.')
       }
 
+      // Delete video from storage now that the analysis is persisted
+      supabase.storage.from('golf-videos').remove([storageKey]).catch((err) => {
+        console.error('Storage cleanup failed:', err)
+      })
+
       return NextResponse.json({ analysis: dbData })
     }
 
-    // Guest: return analysis without persisting
+    // Guest: delete video from storage then return analysis without persisting
+    supabase.storage.from('golf-videos').remove([storageKey]).catch((err) => {
+      console.error('Storage cleanup failed (guest):', err)
+    })
     return NextResponse.json({ analysis: { analysis_json: analysisJson } })
   } catch (err) {
     console.error('Analysis error:', err)

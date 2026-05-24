@@ -165,8 +165,15 @@ function HistoryItem({
   )
 }
 
+const selectClass =
+  'bg-turf-800 border border-turf-600 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-flag/50 [color-scheme:dark]'
+
 export default function HistoryClient({ analyses: initialAnalyses }: HistoryClientProps) {
   const [analyses, setAnalyses] = useState(initialAnalyses)
+  const [clubFilter, setClubFilter] = useState('')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const handleDelete = (id: string) => {
     setAnalyses((prev) => prev.filter((a) => a.id !== id))
@@ -190,11 +197,76 @@ export default function HistoryClient({ analyses: initialAnalyses }: HistoryClie
     )
   }
 
+  const clubs = Array.from(
+    new Set(analyses.map((a) => a.club).filter((c): c is string => Boolean(c)))
+  ).sort()
+
+  const filtered = analyses
+    .filter((a) => !clubFilter || a.club === clubFilter)
+    .filter((a) => !dateFrom || a.created_at.slice(0, 10) >= dateFrom)
+    .filter((a) => !dateTo || a.created_at.slice(0, 10) <= dateTo)
+    .sort((a, b) => {
+      const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      return sortOrder === 'newest' ? -diff : diff
+    })
+
   return (
     <div className="space-y-4">
-      {analyses.map((analysis) => (
-        <HistoryItem key={analysis.id} analysis={analysis} onDelete={handleDelete} />
-      ))}
+      {/* Filter / sort controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={clubFilter} onChange={(e) => setClubFilter(e.target.value)} className={selectClass}>
+          <option value="">All clubs</option>
+          {clubs.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        <select
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
+          className={selectClass}
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 text-xs shrink-0">From</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className={selectClass}
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 text-xs shrink-0">To</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className={selectClass}
+          />
+        </div>
+      </div>
+
+      {/* Results */}
+      {filtered.length === 0 ? (
+        <div className="card text-center py-16">
+          <div className="w-16 h-16 bg-turf-800 rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <BarChart2 className="w-8 h-8 text-slate-600" />
+          </div>
+          <h3 className="text-white font-semibold text-lg mb-2">No analyses match your filters</h3>
+          <p className="text-slate-400 text-sm max-w-xs mx-auto">
+            Try adjusting the club, date range, or sort order.
+          </p>
+        </div>
+      ) : (
+        filtered.map((analysis) => (
+          <HistoryItem key={analysis.id} analysis={analysis} onDelete={handleDelete} />
+        ))
+      )}
     </div>
   )
 }

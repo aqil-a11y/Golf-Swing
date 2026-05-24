@@ -34,6 +34,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
   const [trialExhausted, setTrialExhausted] = useState(false)
   const [resultClub, setResultClub] = useState<string | null>(null)
   const [resultTitle, setResultTitle] = useState<string | null>(null)
+  const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const count = getTrialCount()
@@ -41,7 +42,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
     setTrialExhausted(!isLoggedIn && count >= FREE_TRIAL_LIMIT)
   }, [isLoggedIn])
 
-  const handleAnalyze = async (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null) => {
+  const handleAnalyze = async (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null, videoPreviewUrl?: string | null) => {
     if (!isLoggedIn && trialCount >= FREE_TRIAL_LIMIT) {
       setTrialExhausted(true)
       return
@@ -80,6 +81,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
       setResult(analysisJson)
       setResultClub(club)
       setResultTitle(title)
+      setResultVideoUrl(videoPreviewUrl ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
@@ -93,6 +95,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
     setError(null)
     setResultClub(null)
     setResultTitle(null)
+    setResultVideoUrl(null)
   }
 
   // Guest free trial exhausted — sign up wall
@@ -124,6 +127,14 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
 
     return (
       <div className="animate-fade-in space-y-8">
+        {resultVideoUrl && (
+          <video
+            src={resultVideoUrl}
+            controls
+            className="w-full rounded-2xl max-h-80 object-contain bg-black border border-turf-600"
+          />
+        )}
+
         {/* Summary card */}
         <div className="card bg-gradient-to-br from-turf-800 to-turf-900 border-flag/20">
           <h2 className="text-white font-bold text-xl mb-2">Swing Analysis Complete</h2>
