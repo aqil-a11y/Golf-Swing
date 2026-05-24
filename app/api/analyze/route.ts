@@ -4,12 +4,11 @@ import { GoogleAIFileManager, FileState } from '@google/generative-ai/server'
 import { writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { del } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
 
 export const maxDuration = 120
 
-const ALLOWED_TYPES = ['video/mp4', 'video/quicktime']
+const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
 
 const ANALYSIS_PROMPT = `You are an expert golf coach. Analyze this golf swing video and provide structured feedback on: 1) Swing mechanics (posture, stance, grip, backswing, downswing, follow-through), 2) Club path and angle at impact, 3) Tempo and timing across the full swing. For each area give a rating out of 10, a 2-3 sentence observation, and one specific improvement tip. Return the response as JSON with EXACTLY this structure and no other text:
 {
@@ -47,10 +46,16 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     // Parse JSON body
-    const { blobUrl, mimeType } = await request.json() as { blobUrl: string; mimeType: string }
+    const { storageKey, signedUrl, mimeType, club, title } = await request.json() as {
+      storageKey: string
+      signedUrl: string
+      mimeType: string
+      club?: string | null
+      title?: string | null
+    }
 
-    if (!blobUrl || !mimeType) {
-      return NextResponse.json({ error: 'Missing blobUrl or mimeType.' }, { status: 400 })
+    if (!storageKey || !signedUrl || !mimeType) {
+      return NextResponse.json({ error: 'Missing storageKey, signedUrl, or mimeType.' }, { status: 400 })
     }
 
     if (!ALLOWED_TYPES.includes(mimeType)) {
@@ -60,38 +65,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Download video from blob storage
-    const blobResponse = await fetch(blobUrl)
-    if (!blobResponse.ok) {
+    // Download video from Supabase Storage signed URL
+    const videoResponse = await fetch(signedUrl)
+    if (!videoResponse.ok) {
       return NextResponse.json({ error: 'Failed to retrieve uploaded video.' }, { status: 500 })
     }
-    const videoBuffer = Buffer.from(await blobResponse.arrayBuffer())
-
-    // — Upload to Supabase Storage (authenticated users only) —
-    let videoUrl: string | null = null
-
-    if (user) {
-      const ext = mimeType === 'video/quicktime' ? 'mov' : 'mp4'
-      const storagePath = `${user.id}/${Date.now()}-swing.${ext}`
-
-      const { error: storageError } = await supabase.storage
-        .from('golf-videos')
-        .upload(storagePath, videoBuffer, {
-          contentType: mimeType,
-          upsert: false,
-        })
-
-      if (storageError) {
-        console.error('Storage upload error:', storageError)
-        return NextResponse.json({ error: 'Failed to upload video. Please try again.' }, { status: 500 })
-      }
-
-      const { data: urlData } = supabase.storage.from('golf-videos').getPublicUrl(storagePath)
-      videoUrl = urlData.publicUrl
-    }
+    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer())
 
     // — Write to temp file for Gemini File API —
-    const ext = mimeType === 'video/quicktime' ? 'mov' : 'mp4'
+    const ext = mimeType === 'video/quicktime' ? 'mov' : mimeType === 'video/webm' ? 'webm' : 'mp4'
     tempPath = join(tmpdir(), `swing-${Date.now()}.${ext}`)
     writeFileSync(tempPath, videoBuffer)
 
@@ -132,6 +114,11 @@ export async function POST(request: NextRequest) {
       throw new Error('Video processing timed out. Please try again with a shorter clip.')
     }
 
+    // — Build prompt (prepend club context when provided) —
+    const prompt = club
+      ? `The golfer is using a ${club}. Factor this into your analysis where relevant (e.g. expected swing arc, tempo, and impact position differ by club). ${ANALYSIS_PROMPT}`
+      : ANALYSIS_PROMPT
+
     // — Run Gemini analysis —
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
@@ -146,7 +133,7 @@ export async function POST(request: NextRequest) {
                 fileUri: uploadResult.file.uri,
               },
             },
-            { text: ANALYSIS_PROMPT },
+            { text: prompt },
           ])
         } catch (err: unknown) {
           const isOverloaded =
@@ -180,18 +167,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Clean up the Gemini file and blob (best-effort)
+    // Clean up Gemini file and staging storage (best-effort)
     fileManager.deleteFile(uploadResult.file.name).catch(() => {})
-    del(blobUrl).catch(() => {})
+    supabase.storage.from('golf-videos').remove([storageKey]).catch(() => {})
 
     // — Save to database for authenticated users; return raw JSON for guests —
-    if (user && videoUrl) {
+    if (user) {
       const { data: dbData, error: dbError } = await supabase
         .from('analyses')
         .insert({
           user_id: user.id,
-          video_url: videoUrl,
           analysis_json: analysisJson,
+          title: title ?? null,
+          club: club ?? null,
         })
         .select()
         .single()

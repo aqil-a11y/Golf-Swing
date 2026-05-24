@@ -1,17 +1,88 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { upload } from '@vercel/blob/client'
 import { Upload, Video, X, Play } from 'lucide-react'
 
+const CLUBS = [
+  'Driver', '3 Wood', '5 Wood', '3 Iron', '4 Iron', '5 Iron',
+  '6 Iron', '7 Iron', '8 Iron', '9 Iron', 'Pitching Wedge',
+  'Gap Wedge', 'Sand Wedge', 'Lob Wedge', 'Putter',
+]
+
 interface VideoUploaderProps {
-  onAnalyze: (blobUrl: string, mimeType: string) => void
+  onAnalyze: (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null) => void
   isAnalyzing: boolean
   analysisStep: string
 }
 
 const MAX_SIZE = 200 * 1024 * 1024
+const COMPRESS_THRESHOLD = 52_428_800  // 50 MB
+const COMPRESS_TARGET = 51_380_224     // 49 MB
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime']
+
+function getRecorderMimeType(): string {
+  const candidates = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']
+  return candidates.find((t) => MediaRecorder.isTypeSupported(t)) ?? 'video/webm'
+}
+
+function compressVideo(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const videoEl = document.createElement('video')
+    videoEl.muted = true
+    videoEl.playsInline = true
+
+    videoEl.onloadedmetadata = () => {
+      const { duration, videoWidth, videoHeight } = videoEl
+      if (!duration || !isFinite(duration)) {
+        URL.revokeObjectURL(objectUrl)
+        resolve(file)
+        return
+      }
+
+      const videoBitsPerSecond = Math.floor((COMPRESS_TARGET * 8) / duration)
+      const canvas = document.createElement('canvas')
+      canvas.width = videoWidth || 1280
+      canvas.height = videoHeight || 720
+      const ctx = canvas.getContext('2d')!
+
+      const mimeType = getRecorderMimeType()
+      const stream = canvas.captureStream(30)
+      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond })
+      const chunks: Blob[] = []
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        URL.revokeObjectURL(objectUrl)
+        const blob = new Blob(chunks, { type: mimeType })
+        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm'
+        const baseName = file.name.replace(/\.[^.]+$/, '')
+        resolve(new File([blob], `${baseName}.${ext}`, { type: mimeType.split(';')[0] }))
+      }
+      recorder.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('Compression failed.'))
+      }
+
+      const drawFrame = () => {
+        if (!videoEl.paused && !videoEl.ended) {
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height)
+        }
+        if (!videoEl.ended) requestAnimationFrame(drawFrame)
+      }
+
+      recorder.start(250)
+      videoEl.play().then(() => drawFrame()).catch(reject)
+      videoEl.onended = () => recorder.stop()
+    }
+
+    videoEl.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not read video file.'))
+    }
+    videoEl.src = objectUrl
+  })
+}
 
 export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUploaderProps) {
   const [file, setFile] = useState<File | null>(null)
@@ -19,6 +90,9 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
+  const [club, setClub] = useState('')
+  const [title, setTitle] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -56,27 +130,54 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
     setFile(null)
     setPreviewUrl(null)
     setError(null)
+    setClub('')
+    setTitle('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleAnalyzeClick = async () => {
     if (!file) return
     setError(null)
-    setIsUploading(true)
+
     try {
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-      })
-      onAnalyze(blob.url, file.type)
-    } catch {
-      setError('Upload failed. Please try again.')
+      let uploadFile = file
+
+      if (file.size > COMPRESS_THRESHOLD) {
+        setIsCompressing(true)
+        uploadFile = await compressVideo(file)
+        setIsCompressing(false)
+      }
+
+      setIsUploading(true)
+
+      const formData = new FormData()
+      formData.append('file', uploadFile)
+
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+      if (!uploadRes.ok) throw new Error('Upload failed. Please try again.')
+
+      const { storageKey, signedUrl } = await uploadRes.json() as { storageKey: string; signedUrl: string }
+
+      onAnalyze(signedUrl, storageKey, uploadFile.type, club || null, title.trim() || null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
+      setIsCompressing(false)
       setIsUploading(false)
     }
   }
 
-  const effectiveStep = isUploading && !isAnalyzing ? 'Uploading video...' : analysisStep
-  const showLoading = isAnalyzing || isUploading
+  const isBusy = isCompressing || isUploading || isAnalyzing
+  const effectiveStep = isCompressing
+    ? 'Compressing video...'
+    : isUploading && !isAnalyzing
+    ? 'Uploading video...'
+    : analysisStep
+
+  const stepIdx = effectiveStep.includes('Compressing') || effectiveStep.includes('Uploading')
+    ? 0
+    : effectiveStep.includes('Processing') || effectiveStep.includes('AI')
+    ? 1
+    : 2
 
   const formatSize = (bytes: number) =>
     bytes >= 1024 * 1024
@@ -120,7 +221,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
               controls
               className="w-full max-h-80 object-contain"
             />
-            {!showLoading && (
+            {!isBusy && (
               <button
                 onClick={clearFile}
                 className="absolute top-3 right-3 w-8 h-8 bg-black/70 hover:bg-black rounded-full flex items-center justify-center transition-colors"
@@ -142,8 +243,39 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
             </div>
           </div>
 
+          {/* Club selection and notes */}
+          {!isBusy && (
+            <>
+              <div>
+                <label className="block text-slate-400 text-sm mb-1.5">Club (optional)</label>
+                <select
+                  value={club}
+                  onChange={(e) => setClub(e.target.value)}
+                  className="w-full bg-turf-800 border border-turf-600 text-white rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-flag/50"
+                >
+                  <option value="">Select club (optional)</option>
+                  {CLUBS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 text-sm mb-1.5">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value.slice(0, 200))}
+                  placeholder="e.g. Range session, working on takeaway"
+                  maxLength={200}
+                  className="w-full bg-turf-800 border border-turf-600 text-white rounded-xl px-3 py-2.5 text-sm placeholder-slate-600 focus:outline-none focus:border-flag/50"
+                />
+              </div>
+            </>
+          )}
+
           {/* Analyze button / loading state */}
-          {showLoading ? (
+          {isBusy ? (
             <div className="card text-center py-8">
               <div className="flex items-center justify-center mb-4">
                 <div className="relative">
@@ -158,22 +290,15 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
 
               {/* Progress steps */}
               <div className="flex items-center justify-center gap-2 mt-5">
-                {['Uploading', 'Processing', 'Analyzing'].map((step, i) => {
-                  const stepIdx = effectiveStep.includes('Uploading')
-                    ? 0
-                    : effectiveStep.includes('Processing') || effectiveStep.includes('AI')
-                    ? 1
-                    : 2
-                  return (
-                    <div key={step} className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full transition-colors ${
-                        i < stepIdx ? 'bg-flag' : i === stepIdx ? 'bg-flag animate-pulse' : 'bg-turf-700'
-                      }`} />
-                      <span className={`text-xs ${i <= stepIdx ? 'text-slate-300' : 'text-slate-600'}`}>{step}</span>
-                      {i < 2 && <div className="w-4 h-px bg-turf-700" />}
-                    </div>
-                  )
-                })}
+                {['Uploading', 'Processing', 'Analyzing'].map((step, i) => (
+                  <div key={step} className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full transition-colors ${
+                      i < stepIdx ? 'bg-flag' : i === stepIdx ? 'bg-flag animate-pulse' : 'bg-turf-700'
+                    }`} />
+                    <span className={`text-xs ${i <= stepIdx ? 'text-slate-300' : 'text-slate-600'}`}>{step}</span>
+                    {i < 2 && <div className="w-4 h-px bg-turf-700" />}
+                  </div>
+                ))}
               </div>
             </div>
           ) : (

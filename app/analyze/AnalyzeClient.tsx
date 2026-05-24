@@ -39,7 +39,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
     setTrialExhausted(!isLoggedIn && count >= FREE_TRIAL_LIMIT)
   }, [isLoggedIn])
 
-  const handleAnalyze = async (blobUrl: string, mimeType: string) => {
+  const handleAnalyze = async (signedUrl: string, storageKey: string, mimeType: string, club: string | null, title: string | null) => {
     if (!isLoggedIn && trialCount >= FREE_TRIAL_LIMIT) {
       setTrialExhausted(true)
       return
@@ -56,7 +56,7 @@ export default function AnalyzeClient({ isLoggedIn }: AnalyzeClientProps) {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blobUrl, mimeType }),
+        body: JSON.stringify({ signedUrl, storageKey, mimeType, club, title }),
       })
 
       clearTimeout(stepTimer)

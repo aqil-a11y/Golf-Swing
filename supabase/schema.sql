@@ -5,11 +5,13 @@
 
 -- 1. Create the analyses table
 CREATE TABLE IF NOT EXISTS public.analyses (
-  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  video_url   TEXT NOT NULL,
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id       UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  video_url     TEXT,                          -- nullable: video is deleted after Gemini processing
   analysis_json JSONB NOT NULL,
-  created_at  TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
+  title         TEXT,                          -- optional user label (e.g. "Driver practice")
+  club          TEXT,                          -- optional club used (e.g. "7 Iron", "Driver")
+  created_at    TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 );
 
 -- 2. Enable Row Level Security
