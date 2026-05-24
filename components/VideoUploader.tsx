@@ -215,6 +215,7 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
   const handleUploadCompressed = async () => {
     if (!compressedFile) return
     setError(null)
+    setShowCompressionModal(false)
     setIsUploading(true)
     try {
       const uploadRes = await fetch('/api/upload', {
