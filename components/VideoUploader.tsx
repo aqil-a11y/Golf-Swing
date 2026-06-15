@@ -475,7 +475,6 @@ export function VideoUploader({ onAnalyze, isAnalyzing, analysisStep }: VideoUpl
         ref={fileInputRef}
         type="file"
         accept="video/mp4,video/quicktime"
-        capture={isMobile ? 'environment' : undefined}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0]
